@@ -1,35 +1,39 @@
-import os
-from flask import Flask, send_file, request
+from flask import Flask, request, send_file
 from openpyxl import Workbook
 import tempfile
+import os
 
 app = Flask(__name__)
 
 @app.route('/generate-excel', methods=['POST'])
 def generate_excel():
-    data = request.json.get('rows', [])
-    filename = request.json.get('filename', 'report.xlsx')
+    try:
+        data = request.get_json()
+        rows = data.get('rows', [])
 
-    if not filename.endswith('.xlsx'):
-        filename += '.xlsx'
+        # Create a workbook and worksheet
+        wb = Workbook()
+        ws = wb.active
 
-    wb = Workbook()
-    ws = wb.active
-    for row in data:
-        ws.append(row)
+        # Add the data to the sheet
+        for row in rows:
+            ws.append(row)
 
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx')
-    wb.save(tmp.name)
-    tmp.seek(0)
+        # Save the file to a temporary location
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
+            wb.save(tmp.name)
+            tmp.seek(0)
 
-    response = send_file(tmp.name, download_name=filename, as_attachment=True)
+            response = send_file(
+                tmp.name,
+                download_name="generated.xlsx",  # Default file name
+                as_attachment=True
+            )
 
-    @response.call_on_close
-    def cleanup():
-        os.remove(tmp.name)
+        return response
 
-    return response
+    except Exception as e:
+        return {"error": str(e)}, 400
 
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 8000))
-    app.run(host='0.0.0.0', port=port)
+    app.run()
